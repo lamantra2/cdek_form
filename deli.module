@@ -1,0 +1,278 @@
+<?php
+
+
+module_load_include('inc', 'deli', 'includes/deli_connector');
+
+function deli_menu(){
+
+$items = array();
+/* $items['sdek1'] = array(
+   'title' => 'Simple page',
+    'page callback' => 'sdek_callback',
+   // 'type' => MENU_CALLBACK,
+     'access callback' => TRUE,
+  );*/
+
+
+  $items['admin/config/deli'] = array(
+    'title' => 'New configuration section',
+    'position' => 'left',
+    'weight' => -100,
+    'page callback' => 'system_admin_menu_block_page',
+    'access arguments' => array('administer site configuration'),
+    'file' => 'system.admin.inc',
+    'file path' => drupal_get_path('module', 'system'),
+  );
+
+  $items['admin/config/deli/config_form'] = array(
+    'title' => 'CF setting',
+    'description' => 'Description for CF settings link',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('deli_admin_form'),
+    'access arguments' => array('administer site configuration'),
+    'file' => 'includes/deli.admin.inc',
+  );
+
+
+
+
+
+  return $items;
+}
+
+
+/**
+ * Implements hook_theme().
+ */
+function deli_theme($existing, $type, $theme, $path) {
+
+  return array(
+    // Theme function for ems sgipping info
+    'details_note' => array(
+      'template' => 'details-note',
+      'path' => drupal_get_path('module', 'deli') . '/theme',
+      'variables' => array(
+        'min_period' => NULL,
+        'max_period' => NULL,
+        'response' => NULL,
+        'price' => NULL,
+        'error_text' => NULL,
+
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements template_preprocess_hook().
+ */
+function template_preprocess_deli(&$variables) {
+
+
+  $variables['price'] = $variables['response']->price;
+  $variables['max_period'] = $variables['response']->max_period;
+  $variables['min_period'] = $variables['response']->min_period;
+
+  $variables['error_text'] = $variables['response']->error_text;
+
+}
+
+
+function deli_form($form, $form_state){
+  $form = array();
+  $form['#prefix'] = '<div id="deli_form_wrapper">';
+  $form['#suffix'] = '</div>';
+
+  $form['#attached']['library'][] = array('system', 'ui.autocomplete');
+  $form['#attached']['js'][] = drupal_get_path('module', 'deli') . '/js/deli.js';
+  $form['#attached']['css'][] = drupal_get_path('module', 'deli') . '/css/deli.css';
+
+
+
+//dsm($form_state);
+
+
+  $form['mark'] = array(
+    '#type' => 'markup',
+    /*'#theme' => 'details_note',*/
+    '#prefix' => '<div id = "form-ajax-node-content">',
+    '#suffix' => '</div>',
+    '#markup' => '',
+  );
+
+
+  $form['city'] = array(
+   '#title' => t('Город'),
+   '#type' => 'textfield',
+   '#attributes' =>  array('class' => array('city')),
+   '#default_value' => (isset($form_state['values']['city'])) ? $form['values']['city'] : '' ,
+  );
+
+
+  $form['receiver'] = array(
+   //'#title' => t('Город'),
+   '#type' => 'hidden',
+   '#attributes' =>  array('id' => array('receiverCityId')),
+
+  );
+
+  $form['quantity'] = array(
+
+   '#title' => t('Количество'),
+   '#type' => 'textfield',
+   '#default_value' => 1,
+   '#size' => 4
+  );
+
+  $form['date'] = array(
+   '#title' => t('Дата'),
+   '#type' => 'hidden',
+   '#size' => 10
+  );
+
+
+
+ $form['first_wra'] = array(
+        '#prefix' =>'<div id="first">',
+        '#suffix' =>'</div>',
+        '#type' => 'markup',
+
+      );
+
+$type_stor = (isset($form['values']['roll_type'])) ? $form['values']['roll_type'] : 'standart' ;
+
+  $form['roll_type'] = array(
+  '#type' => 'radios',
+  '#options' => drupal_map_assoc(array(t('standart'), t('mini'))),
+  '#title' => t('Какую штору отправить'),
+  '#default_value' => $type_stor,
+    );
+
+  $form['submit'] = array(
+   '#type' => 'submit',
+   '#value' => t('Посчитать'),
+    '#ajax' => array(
+      'callback' => 'deli_form_ajax',
+     'wrapper' => 'form-ajax-node-content',
+      // 'wrapper' => 'first',
+    ),
+ );
+
+  return $form;
+}
+
+/*function deli_form_validate($form, &$form_state) {
+
+    if (empty($form_state['values']['city'])){
+        form_set_error('city', 'Не заполен пункт отправления');
+
+        }
+
+}*/
+
+
+function deli_form_ajax($form, $form_state) {
+
+  module_load_include('inc', 'deli', 'includes/deli_connector.inc');
+
+
+  $tarif = variable_get('tarifid', '');           // получаем тариф
+  $receiver = $form_state['values']['receiver'];  // пункт доставки
+  $quantity = $form_state['values']['quantity'];  // количество
+  $type = $form_state['values']['roll_type'];     // тип штор
+
+   if($type == 'standart'){
+      $weight = variable_get('standart_weight', '');
+      $length = variable_get('standart_length', '');
+      $width =  variable_get('standart_weight', '');
+      $height = variable_get('standart_height', '');
+    }else{
+      $weight = variable_get('mini_weight', '');
+      $length = variable_get('mini_length', '');
+      $width =  variable_get('mini_weight', '');
+      $height = variable_get('mini_height', '');
+    }
+
+    $goods = array();
+
+    $array = array(
+        "weight" => $weight,
+        "length" => $length,
+        "width"  => $width,
+        "height" => $height
+      );
+
+    for($i = 1; $i <= $quantity; $i++){
+        $goods[] = $array;
+      }
+
+     //dsm($goods);
+
+if(empty($form_state['values']['city'])){
+
+  $form['mark']['#theme'] = 'details_note';
+  $form['mark']['#error_text'] = 'Не заполен пункт отправления';
+
+  return $form['mark'];
+
+}else{
+
+     $res = calculate_rate($receiver, $goods, $tarif);
+
+     $form['mark']['#theme'] = 'details_note';
+    if(isset($res->error_text)){
+
+      $form['mark']['#error_text'] = $res->error_text;
+
+    }else{
+     // $form['mark']['#theme'] = 'details_note';
+      $form['mark']['#min_period'] = $res->min_period;
+      $form['mark']['#max_period'] = $res->max_period;
+      $form['mark']['#price'] = $res->price;
+      $form['mark']['#response'] = $res;
+
+    }
+
+  return $form['mark'];
+}
+
+}
+
+
+
+
+function deli_form_submit($form, &$form_state){
+
+}
+
+
+/*function sdek_callback(){
+
+    $form = drupal_get_form('deli_form'); //получаем поля формы
+    $form = drupal_render($form); //рендерим форму
+     return $form;
+}*/
+
+
+
+function deli_block_info() {
+        $blocks['deli_form'] = array(
+                'info' => t('Форма расчёта стоимости доставки СДЕК'),
+                'cache' => DRUPAL_NO_CACHE,
+        );
+        return $blocks;
+}
+
+function deli_block_view($delta = '') {
+
+      $block = array();
+
+      switch ($delta) {
+          case 'deli_form':
+            $block['subject'] = '';
+            $block['content'] = drupal_get_form('deli_form');
+          break;
+      }
+        return $block;
+}
+

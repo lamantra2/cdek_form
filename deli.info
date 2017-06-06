@@ -1,0 +1,5 @@
+name = Deli
+description = Расчёт стоимости доставки.
+package = Reno
+
+core = 7.x
